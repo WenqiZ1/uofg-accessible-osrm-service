@@ -1,7 +1,8 @@
-FROM debian:bookworm-slim
+FROM osrm/osrm-backend:latest
 
+# 仅补充我们需要的工具：nginx + tini + envsubst
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    osrm-backend nginx ca-certificates curl tini gettext-base && \
+    nginx ca-certificates curl tini gettext-base && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /srv
