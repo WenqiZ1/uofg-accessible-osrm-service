@@ -1,5 +1,6 @@
 # 使用 OSRM 后端镜像（建议固定版本更稳）
-FROM osrm/osrm-backend:v5.27.2
+FROM osrm/osrm-backend:v5.27.0
+
 # FROM osrm/osrm-backend:latest
 
 # —— 修正 stretch 源到 archive，避免 404 —— 
@@ -31,3 +32,4 @@ RUN chmod +x /start.sh
 
 EXPOSE 10000
 CMD ["/start.sh"]
+
