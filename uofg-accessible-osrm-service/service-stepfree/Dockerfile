@@ -12,7 +12,7 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 # 复制数据 & profile
 COPY data/*.osm /srv/map.osm
-COPY profiles/foot_XXXX.lua /srv/foot.lua   # 这里各自服务用各自的 lua
+COPY profiles/foot_stepfree.lua /srv/foot.lua   # 这里各自服务用各自的 lua
 
 # 预处理
 RUN osrm-extract -p /srv/foot.lua /srv/map.osm && \
@@ -26,5 +26,6 @@ RUN chmod +x /start.sh
 
 EXPOSE 10000
 CMD ["/start.sh"]
+
 
 
