@@ -1,5 +1,5 @@
 # 使用 OSRM 后端镜像（建议固定版本更稳）
-FROM osrm/osrm-backend:v5.27.0
+FROM osrm/osrm-backend:latest
 
 # FROM osrm/osrm-backend:latest
 
@@ -32,4 +32,5 @@ RUN chmod +x /start.sh
 
 EXPOSE 10000
 CMD ["/start.sh"]
+
 
