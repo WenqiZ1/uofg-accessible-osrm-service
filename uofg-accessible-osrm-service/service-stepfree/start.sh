@@ -1,8 +1,11 @@
-#!/usr/bin/env bash
-set -e
+#!/usr/bin/env sh
+set -eux
 
-# 前台启动 OSRM（并行/自定义数据都已经在 build 时完成）
-osrm-routed --algorithm mld /srv/map.osrm --port 5000 &
+# Render 会注入 PORT 环境变量；本地无则用 10000
+PORT="${PORT:-10000}"
 
-# 前台运行 nginx（作为 Render 对外的 10000 端口）
-nginx -g 'daemon off;'
+# 直接启动 osrm-routed；使用 MLD（和我们上面的 partition/customize 一致）
+exec osrm-routed \
+  --algorithm mld \
+  --port "${PORT}" \
+  /srv/map.osrm
