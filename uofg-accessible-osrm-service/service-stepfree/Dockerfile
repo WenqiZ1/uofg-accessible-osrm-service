@@ -16,6 +16,10 @@ RUN osrm-extract -p /srv/foot.lua /srv/map.osm && \
 COPY service-stepfree/start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Render 会把流量打到 $PORT；默认 10000 以防本地测试
+# 关键修复：去掉 CRLF，授权执行
+RUN sed -i 's/\r$//' /start.sh /etc/nginx/nginx.conf && chmod +x /start.sh
+
 EXPOSE 10000
 CMD ["/start.sh"]
+
+
