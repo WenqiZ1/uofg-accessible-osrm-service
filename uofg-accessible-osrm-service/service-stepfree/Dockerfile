@@ -10,14 +10,21 @@ RUN set -eux; \
     apt-get update && \
     apt-get install -y --no-install-recommends nginx ca-certificates curl tini gettext-base && \
     rm -rf /var/lib/apt/lists/*
-
-
-# 复制数据
+# 复制数据 & profile
 COPY data/*.osm /srv/map.osm
-COPY profiles/foot_stepfree.lua /srv/foot.lua
+COPY profiles/foot_XXXX.lua /srv/foot.lua   # 这里各自服务用各自的 lua
 
-# OSRM 预处理
+# 预处理
 RUN osrm-extract -p /srv/foot.lua /srv/map.osm && \
     osrm-partition /srv/map.osrm && \
     osrm-customize /srv/map.osrm
+
+# （如果你在用 nginx + start.sh，就继续 COPY 并 CMD）
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+EXPOSE 10000
+CMD ["/start.sh"]
+
 
