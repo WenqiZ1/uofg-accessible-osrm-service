@@ -14,12 +14,9 @@ RUN osrm-extract -p /srv/foot.lua /srv/map.osm && \
 
 # 4) 启动脚本
 COPY service-stepfree/start.sh /start.sh
-RUN chmod +x /start.sh
 
-# 关键修复：去掉 CRLF，授权执行
-RUN sed -i 's/\r$//' /start.sh /etc/nginx/nginx.conf && chmod +x /start.sh
+# 关键修复：去掉 CRLF，并授予执行权限（不再处理 nginx.conf）
+RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 
 EXPOSE 10000
 CMD ["/start.sh"]
-
-
