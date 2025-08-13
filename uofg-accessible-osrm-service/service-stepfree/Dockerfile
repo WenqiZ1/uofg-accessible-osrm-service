@@ -1,8 +1,8 @@
-FROM osrm/osrm-backend:latest
-# 如果希望更稳，用固定版本：
-# FROM osrm/osrm-backend:v5.27.2
+# 使用 OSRM 后端镜像（建议固定版本更稳）
+FROM osrm/osrm-backend:v5.27.2
+# FROM osrm/osrm-backend:latest
 
-# 先把 stretch 的源改到 archive（非常关键，要在最前面）
+# —— 修正 stretch 源到 archive，避免 404 —— 
 RUN set -eux; \
     echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid && \
     sed -i -E 's@//deb.debian.org/debian@//archive.debian.org/debian@g' /etc/apt/sources.list /etc/apt/sources.list.d/*.list || true && \
@@ -10,22 +10,24 @@ RUN set -eux; \
     apt-get update && \
     apt-get install -y --no-install-recommends nginx ca-certificates curl tini gettext-base && \
     rm -rf /var/lib/apt/lists/*
-# 复制数据 & profile
-COPY data/*.osm /srv/map.osm
-COPY profiles/foot_stepfree.lua /srv/foot.lua   # 这里各自服务用各自的 lua
 
-# 预处理
+# —— 拷贝 Glasgow 的 .osm 数据 —— 
+# 注意：源路径使用仓库根相对路径，带目录前缀更稳
+COPY data/*.osm /srv/map.osm
+
+# —— 拷贝 step-free 的 profile —— 
+COPY profiles/foot_stepfree.lua /srv/foot.lua
+
+# —— 预处理（extract/partition/customize）——
 RUN osrm-extract -p /srv/foot.lua /srv/map.osm && \
     osrm-partition /srv/map.osrm && \
     osrm-customize /srv/map.osrm
 
-# （如果你在用 nginx + start.sh，就继续 COPY 并 CMD）
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY start.sh /start.sh
+# —— 拷贝 Nginx 配置与启动脚本 —— 
+# 这里确保源路径写成 service-stepfree/ 前缀（因为 build 上下文是仓库根）
+COPY service-stepfree/nginx.conf /etc/nginx/nginx.conf
+COPY service-stepfree/start.sh  /start.sh
 RUN chmod +x /start.sh
 
 EXPOSE 10000
 CMD ["/start.sh"]
-
-
-
