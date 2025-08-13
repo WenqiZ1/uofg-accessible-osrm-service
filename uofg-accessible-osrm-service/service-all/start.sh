@@ -7,3 +7,4 @@ exec osrm-routed \
   --algorithm mld \
   --port "${PORT}" \
   /srv/map.osrm
+
