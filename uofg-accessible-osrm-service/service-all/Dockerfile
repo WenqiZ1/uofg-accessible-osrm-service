@@ -5,12 +5,10 @@ FROM osrm/osrm-backend:latest
 COPY data/*.osm /srv/map.osm
 COPY profiles/foot_all.lua /srv/foot.lua
 
-# 预处理
-RUN osrm-extract -p /srv/foot.lua /srv/map.osm && \
-    osrm-partition /srv/map.osrm && \
-    osrm-customize /srv/map.osrm
+RUN osrm-extract   -p /srv/foot.lua /srv/all_access.osm && \
+    osrm-partition    /srv/all_access.osrm && \
+    osrm-customize    /srv/all_access.osrm
 
-# 启动脚本（无 nginx）
 COPY service-all/start.sh /start.sh
 RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 
