@@ -1,83 +1,99 @@
--- OSRM profile API version 0
-api_version = 0
+-- step-free profile: optimize accessibility cost while keeping ETA from speed
+-- access_score: 3 (best) .. 9 (worst)
 
--- 可选：setup 在 v0 里不会影响 way_function 的可达性判断，但可以保留
+local find_access_tag = require("lib/access").find_access_tag
+local limit           = require("lib/limit")
+local utils           = require("lib/utils")
+
 function setup()
   return {
     properties = {
-      weight_name = 'duration',
-      u_turn_penalty = 0,
-      continue_straight_at_waypoint = true
-    }
+      weight_name = "accessibility",     -- 选路依据：自定义权重
+      max_speed_for_map_matching = 40/3.6,
+      weight_precision = 1,
+      use_turn_restrictions = true,
+      continue_straight_at_waypoint = true,
+      ignore_in_grid = false
+    },
+    default_mode     = mode.walking,
+    default_speed    = 5.0,              -- km/h，用于 ETA
+    oneway_handling  = true,
+    -- 可选：直接排除极差边
+    -- excludable = { { condition = "access_score > 8", exclude = true } }
   }
 end
 
--- 基础速度（km/h），不同 highway 给个合理基线，保证“永远 > 0”
-local BASE_SPEED = {
-  footway = 5, path = 4, pedestrian = 4, living_street = 5,
-  residential = 5, service = 5, track = 3, steps = 3,
-  tertiary = 4, secondary = 4, primary = 3, unclassified = 4
+local SPEED = {                           -- km/h：ETA 仍按速度算
+  footway=5.0, path=4.8, pedestrian=5.0, living_street=4.8,
+  residential=4.8, service=4.6, track=3.5, steps=3.0,
+  tertiary=4.2, secondary=4.0, primary=3.8, unclassified=4.4
 }
 
--- 你的可达性分数 -> 速度下限
-local ACCESS_SPEED = { [2]=5.0,[3]=4.0,[4]=3.0,[5]=2.4,[6]=2.0,[7]=1.2,[8]=0.8,[9]=0.6 }
-
-local function penalty_factor(score, surf_ratin, slope_rating, is_steps)
-  -- 越大越慢（乘到 duration 上）
-  local p = 1.0
-  if score and score > 2 then p = p + (score - 2) * 0.6 end
-  if surf_ratin and surf_ratin >= 3 then p = p * 1.4 end
-  if slope_rating and slope_rating >= 3 then p = p * 1.4 end
-  if is_steps then p = p * 6.0 end  -- 楼梯巨惩罚（若不硬禁）
-  return p
+-- 把 access_score -> rate 因子（每米成本倍数，>=1）
+local function score_to_factor(s)
+  -- 默认友好：3
+  local score = tonumber(s) or 3
+  if score < 3 then score = 3 end
+  if score > 9 then score = 9 end
+  -- 线性或略指数：3→1.0, 4→1.2, 5→1.5, 6→1.9, 7→2.4, 8→3.0, 9→3.8（可按需调整）
+  local map = { [3]=1.0, [4]=1.2, [5]=1.5, [6]=1.9, [7]=2.4, [8]=3.0, [9]=3.8 }
+  return map[score] or 1.0
 end
 
-function way_function(way, result)
-  local highway = way:get_value_by_key('highway')
+function process_node(profile, node, result)
+  -- 可按需处理 elevator/kerb 等节点，这里留空
+end
+
+function process_way(profile, way, result)
+  local highway = way:get_value_by_key("highway")
   if not highway then return end
 
-  -- 明确禁止步行的边直接丢弃
-  local foot = way:get_value_by_key('foot')
-  if foot == 'no' then return end
-
-  -- 楼梯：如果明确标注不可替代的无障碍（step_free=no），才硬禁
-  local is_steps  = (highway == 'steps')
-  local step_free = way:get_value_by_key('step_free')
-  if is_steps and (step_free == 'no' or step_free == nil) then
-    -- 如果你确实想完全禁用楼梯，保留这行 return；若想保留、仅惩罚，则注释掉 return
+  -- Step-Free：硬禁楼梯
+  if highway == "steps" then
+    result.forward_mode  = mode.inaccessible
+    result.backward_mode = mode.inaccessible
     return
   end
 
-  -- 读取你数据表里的字段（nil 安全）
-  local score      = tonumber(way:get_value_by_key('access_sco')) or 6
-  local surf_ratin = tonumber(way:get_value_by_key('surf_ratin')) or 2
-  local slope_rate = tonumber(way:get_value_by_key('MEAN_Recla')) or 2
+  -- 明确禁止步行的边直接丢弃
+  local foot = way:get_value_by_key("foot")
+  if foot == "no" then return end
 
-  -- 先取 highway 对应的基线速度，再和可达性速度取 max，保证 > 0
-  local base_speed = BASE_SPEED[highway] or 3.0
-  local access_min = ACCESS_SPEED[score] or 2.0
-  local speed = math.max(base_speed, access_min)
-  if speed < 0.5 then speed = 0.5 end
-
-  -- 设置为可走（**关键：不要 return，不要设 0 速度**）
+  -- ETA 的速度设定
+  local spd = SPEED[highway] or 4.6
   result.forward_mode   = mode.walking
   result.backward_mode  = mode.walking
-  result.forward_speed  = speed
-  result.backward_speed = speed
-  result.name           = way:get_value_by_key('name') or highway
+  result.forward_speed  = spd
+  result.backward_speed = spd
+  result.name           = way:get_value_by_key("name") or highway
 
-  -- 惩罚：把 duration 放大（旧 API 里 duration 会基于速度计算）
-  local pf = penalty_factor(score, surf_ratin, slope_rate, is_steps)
-  if result.duration and result.duration > 0 then
-    result.duration = result.duration * pf
-    if result.weight then result.weight = result.duration end
+  -- 读取你的可达性分数（若没打标，默认 3 = 友好）
+  local access_score = way:get_value_by_key("access_score")
+  local factor = score_to_factor(access_score)
+
+  -- 关键：用 rate（每米成本）承载“可达性代价”
+  -- OSRM 的权重 = 距离(米) * rate(秒/米或无量纲常数)，这里用相对因子即可
+  -- 为避免极端，把 rate 下限设为 1/步行最快速度，上限做个夹取
+  local base_rate = 1.0 / (spd / 3.6)   -- 以“时间权重”为基（秒/米）
+  local rate = base_rate * factor
+
+  -- 如果你希望“只优化可达性、ETA 不被影响”，也可以：
+  --   rate = (1.0) * factor
+  -- 这样权重与速度解耦，但通常与 ETA 稍有偏离；上面选择“以时间为基再乘因子”更直观
+  if rate < 0.2 then rate = 0.2 end
+  if rate > 10.0 then rate = 10.0 end
+
+  result.forward_rate  = rate
+  result.backward_rate = rate
+end
+
+function process_turn(profile, turn)
+  -- 适度转向代价；也可按红绿灯加重
+  if turn.has_traffic_light then
+    turn.weight   = 2.0
+    turn.duration = 2.0
+  else
+    turn.weight   = 1.0
+    turn.duration = 1.0
   end
-end
-
-function node_function(node, result)
-  -- 这里保持空实现即可
-end
-
-function segment_function(segment, result)
-  -- v0 可不实现
 end
