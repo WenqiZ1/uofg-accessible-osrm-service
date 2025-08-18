@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 set -eux
 PORT="${PORT:-10000}"
-# 打印签名，便于在日志中确认确实跑的是 ALL ACCESS
+
+# 打印签名，严防“以为换了，其实没换”
 md5sum /srv/foot.lua /srv/all_access.osm || true
 head -n 20 /srv/foot.lua || true
 
