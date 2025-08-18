@@ -62,7 +62,7 @@ function process_way(profile, way, result)
   result.backward_speed = spd
   result.name = way:get_value_by_key("name") or h
 
-  -- surface 数值分：越高越差
+  -- surface 数值分（越高越差）
   local s_num = way:get_value_by_key("surface_score")
              or way:get_value_by_key("surf_ratin")
              or way:get_value_by_key("surface:score")
@@ -74,7 +74,7 @@ function process_way(profile, way, result)
   end
 
   -- rate = 基于时间的每米成本 × 惩罚因子
-  local base_rate = 1.0 / (spd / 3.6)          -- 秒/米
+  local base_rate = 1.0 / (spd / 3.6)   -- 秒/米
   local rate = base_rate * factor
   if rate < 0.2 then rate = 0.2 end
   if rate > 10.0 then rate = 10.0 end
@@ -87,3 +87,10 @@ function process_turn(profile, turn)
   turn.duration = turn.has_traffic_light and 2.0 or 1.0
   turn.weight   = turn.duration
 end
+
+return {
+  setup = setup,
+  process_node = process_node,
+  process_way = process_way,
+  process_turn = process_turn
+}
