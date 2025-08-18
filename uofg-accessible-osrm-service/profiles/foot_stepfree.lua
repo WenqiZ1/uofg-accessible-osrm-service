@@ -2,7 +2,6 @@
 -- access_score: 3 (best) .. 9 (worst)
 
 local find_access_tag = require("lib/access").find_access_tag
-local limit           = require("lib/limit")
 local utils           = require("lib/utils")
 
 function setup()
@@ -97,3 +96,4 @@ function process_turn(profile, turn)
     turn.duration = 1.0
   end
 end
+
