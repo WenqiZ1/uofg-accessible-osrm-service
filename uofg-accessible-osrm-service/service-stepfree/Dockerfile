@@ -1,7 +1,7 @@
 # service-stepfree/Dockerfile
 FROM osrm/osrm-backend:latest
 
-COPY data/streets_single_fixed_with_highway.osm /srv/map.osm
+COPY data/streets_single_fixed_with_highway_fixed.osm /srv/map.osm
 
 # 2) 使用 step-free 的 Lua
 COPY profiles/foot_stepfree.lua /srv/foot.lua
@@ -18,5 +18,6 @@ RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 
 EXPOSE 10000
 CMD ["/start.sh"]
+
 
 
