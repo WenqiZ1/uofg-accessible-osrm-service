@@ -1,4 +1,4 @@
-api_version = 1
+api_version = 4
 
 function setup()
   return {
@@ -7,53 +7,45 @@ function setup()
       max_speed_for_map_matching = 20/3.6,
       u_turn_penalty = 20,
       continue_straight_at_waypoint = true,
+      use_turn_restrictions = false
     },
-
     default_mode = mode.walking,
     default_speed = 5,
     oneway_handling = 'specific',
-    turn_penalty = 30.0,
-
-    barrier_whitelist = {},
-    access_tag_whitelist = { 'yes', 'foot', 'permissive' },
-    access_tag_blacklist = { 'no', 'private' },
-
-    restricted_access_tag_list = {},
-    restricted_highway_whitelist = {},
-
-    construction_whitelist = {},
-
-    use_turn_restrictions = false,
+    turn_penalty = 30.0
   }
 end
 
 function process_node(profile, node, result)
   local access = node:get_value_by_key("access")
-  if access and profile.access_tag_blacklist[access] then
+  if access == 'no' or access == 'private' then
     result.barrier = true
   end
 end
 
 function process_way(profile, way, result)
-  local highway = way:get_value_by_key("highway")
+  local h = way:get_value_by_key("highway")
+  if not h then return end
+  if h == "motorway" or h == "motorway_link" then return end
+  if way:get_value_by_key("foot") == "no" then return end
 
-  if not highway then
-    return
-  end
-
-  if highway == "motorway" or highway == "motorway_link" then
-    return
-  end
-
-  result.forward_mode = mode.walking
-  result.backward_mode = mode.walking
-  result.forward_speed = profile.default_speed
+  result.forward_mode   = mode.walking
+  result.backward_mode  = mode.walking
+  result.forward_speed  = profile.default_speed
   result.backward_speed = profile.default_speed
+  result.name = way:get_value_by_key("name") or h
 end
 
 function process_turn(profile, turn)
-  turn.duration = profile.turn_penalty
-  if turn.has_traffic_light then
-    turn.duration = turn.duration + 2
-  end
+  local t = profile.turn_penalty
+  if turn.has_traffic_light then t = t + 2 end
+  turn.duration = t
+  turn.weight   = t
 end
+
+return {
+  setup = setup,
+  process_node = process_node,
+  process_way  = process_way,
+  process_turn = process_turn
+}
