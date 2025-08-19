@@ -5,7 +5,7 @@ FROM osrm/osrm-backend:latest
 COPY data/glasgow.osm.pbf /srv/all_access.osm.pbf
 
 # 复制你自己的 foot.lua（v2，带 require）
-COPY profiles/foot.lua /srv/foot.lua
+COPY profiles/foot_all.lua /srv/foot.lua
 
 # 关键：把 OSRM 的 profiles/lib 复制到镜像里，供 require("lib/...") 使用
 # （不同镜像路径略有差异，下面写一个“就近拷贝”的探测）
@@ -29,3 +29,4 @@ RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 
 EXPOSE 10000
 CMD ["/start.sh"]
+
