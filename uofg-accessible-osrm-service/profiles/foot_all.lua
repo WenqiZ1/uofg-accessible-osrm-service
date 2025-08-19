@@ -1,31 +1,59 @@
-# service-all/Dockerfile
-FROM osrm/osrm-backend:latest
+api_version = 1
 
-# 用与你本地一致的 PBF
-COPY data/glasgow.osm.pbf /srv/all_access.osm.pbf
+function setup()
+  return {
+    properties = {
+      weight_name = 'duration',
+      max_speed_for_map_matching = 20/3.6,
+      u_turn_penalty = 20,
+      continue_straight_at_waypoint = true,
+    },
 
-# 复制你自己的 foot.lua（v2，带 require）
-COPY profiles/foot.lua /srv/foot.lua
+    default_mode = mode.walking,
+    default_speed = 5,
+    oneway_handling = 'specific',
+    turn_penalty = 30.0,
 
-# 关键：把 OSRM 的 profiles/lib 复制到镜像里，供 require("lib/...") 使用
-# （不同镜像路径略有差异，下面写一个“就近拷贝”的探测）
-RUN set -eux; \
-  for p in /opt/osrm-backend/profiles/lib /opt/osrm/profiles/lib /usr/local/share/osrm/profiles/lib; do \
-    if [ -d "$p" ]; then mkdir -p /srv/lib && cp -r "$p"/* /srv/lib/ && exit 0; fi; \
-  done; \
-  echo "OSRM lib not found" && exit 1
+    barrier_whitelist = {},
+    access_tag_whitelist = { 'yes', 'foot', 'permissive' },
+    access_tag_blacklist = { 'no', 'private' },
 
-# 可选：补充 Lua 搜索路径（一般不需要，require 会以相对路径找 lib/）
-ENV LUA_PATH="/srv/?.lua;/srv/?/init.lua;/srv/lib/?.lua;/srv/lib/?/init.lua;;"
+    restricted_access_tag_list = {},
+    restricted_highway_whitelist = {},
 
-# 预处理
-RUN osrm-extract -p /srv/foot.lua /srv/all_access.osm.pbf && \
-    osrm-partition /srv/all_access.osrm && \
-    osrm-customize /srv/all_access.osrm
+    construction_whitelist = {},
 
-# 启动脚本
-COPY service-all/start.sh /start.sh
-RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
+    use_turn_restrictions = false,
+  }
+end
 
-EXPOSE 10000
-CMD ["/start.sh"]
+function process_node(profile, node, result)
+  local access = node:get_value_by_key("access")
+  if access and profile.access_tag_blacklist[access] then
+    result.barrier = true
+  end
+end
+
+function process_way(profile, way, result)
+  local highway = way:get_value_by_key("highway")
+
+  if not highway then
+    return
+  end
+
+  if highway == "motorway" or highway == "motorway_link" then
+    return
+  end
+
+  result.forward_mode = mode.walking
+  result.backward_mode = mode.walking
+  result.forward_speed = profile.default_speed
+  result.backward_speed = profile.default_speed
+end
+
+function process_turn(profile, turn)
+  turn.duration = profile.turn_penalty
+  if turn.has_traffic_light then
+    turn.duration = turn.duration + 2
+  end
+end
